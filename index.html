@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人税后工资计算器 | 2024标准</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb; --primary-hover: #1d4ed8; --bg: #f8fafc; --card: #ffffff;
+      --text: #0f172a; --text-muted: #64748b; --border: #e2e8f0;
+      --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+      --radius: 12px; --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--primary); }
+    header p { color: var(--text-muted); font-size: 0.9rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1.2rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .form-row > .form-group { flex: 1; min-width: 140px; }
+    input, select { width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; transition: border-color 0.2s; }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .btn { background: var(--primary); color: white; border: none; padding: 0.7rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 500; transition: background 0.2s; width: 100%; margin-top: 0.5rem; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-secondary { background: var(--text-muted); }
+    .btn-secondary:hover { background: #475569; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .summary-item { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 1rem; border-radius: 10px; text-align: center; }
+    .summary-item.highlight { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid var(--success); }
+    .summary-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+    .summary-value { font-size: 1.3rem; font-weight: bold; color: var(--text); }
+    .summary-value.green { color: var(--success); }
+    .summary-value.red { color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
+    th, td { padding: 0.6rem; text-align: right; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f8fafc; font-weight: 600; color: var(--text-muted); }
+    tr:hover { background: #f1f5f9; }
+    .chart-container { position: relative; height: 300px; margin: 1.5rem 0; }
+    .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: var(--text-muted); }
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; background: #e2e8f0; margin-left: 5px; }
+    .tag.bonus { background: #fef3c7; color: #b45309; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>💰 个人税后工资计算器</h1>
+      <p>基于累计预扣预缴法 | 支持年终奖单独计税 | 含五险一金与专项附加扣除</p>
+    </header>
+    <div class="grid">
+      <div class="card">
+        <h2>📝 参数设置</h2>
+        <div class="form-group"><label>税前月薪（元）</label><input type="number" id="salary" placeholder="例如：15000" value="15000"></div>
+        <div class="form-row">
+          <div class="form-group"><label>社保个人缴纳（元/月）</label><input type="number" id="social" placeholder="养老+医疗+失业" value="1200"></div>
+          <div class="form-group"><label>公积金个人缴纳（元/月）</label><input type="number" id="fund" placeholder="5%-12%比例" value="1800"></div>
+        </div>
+        <div class="form-group">
+          <label>专项附加扣除总额（元/月）</label>
+          <input type="number" id="special" placeholder="子女教育/房贷/租房/赡养老人等" value="3000">
+          <div class="hint">可在个人所得税APP查询或申报</div>
+        </div>
+        <div class="form-group"><label>年终奖（元，全年一次性）</label><input type="number" id="bonus" placeholder="例如：30000" value="30000"></div>
+        <div class="form-group">
+          <label>年终奖计税方式</label>
+          <select id="bonusMethod"><option value="separate">单独计税（推荐，政策至2027年底）</option><option value="combined">并入综合所得计税</option></select>
+        </div>
+        <button class="btn" onclick="calculate()">🔄 重新计算</button>
+        <button class="btn btn-secondary" onclick="resetForm()">🗑️ 重置参数</button>
+      </div>
+      <div>
+        <div class="card">
+          <h2>📊 年度汇总</h2>
+          <div class="summary-grid">
+            <div class="summary-item"><div class="summary-label">年度税前总额</div><div class="summary-value" id="s-gross">¥0</div></div>
+            <div class="summary-item"><div class="summary-label">年度总个税</div><div class="summary-value red" id="s-tax">¥0</div></div>
+            <div class="summary-item"><div class="summary-label">年度公积金账户入账</div><div class="summary-value" id="s-fund">¥0</div></div>
+            <div class="summary-item highlight"><div class="summary-label">年度税后实发</div><div class="summary-value green" id="s-net">¥0</div></div>
+          </div>
+          <div class="chart-container"><canvas id="incomeChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>📅 月度明细表 <span class="tag bonus" id="bonusTag">年终奖单独计税</span></h2>
+          <div style="overflow-x:auto;">
+            <table id="detailTable">
+              <thead><tr><th>月份</th><th>税前</th><th>五险一金</th><th>累计应纳税所得</th><th>当月个税</th><th>税后实发</th></tr></thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">⚠️ 注：本计算器基于国家税务总局现行累计预扣法。社保公积金基数及比例因城市政策不同可能存在差异，建议按实际缴纳金额填写。年终奖单独计税政策延续至2027年12月31日。</div>
+  </div>
+
+  <script>
+    const TAX_BRACKETS = [
+      { limit: 36000, rate: 0.03, deduction: 0 },
+      { limit: 144000, rate: 0.10, deduction: 2520 },
+      { limit: 300000, rate: 0.20, deduction: 16920 },
+      { limit: 420000, rate: 0.25, deduction: 31920 },
+      { limit: 660000, rate: 0.30, deduction: 52920 },
+      { limit: 960000, rate: 0.35, deduction: 85920 },
+      { limit: Infinity, rate: 0.45, deduction: 181920 }
+    ];
+    let chart = null;
+    const formatMoney = num => '¥' + Number(num || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function calculateTax(cumulativeTaxableIncome) {
+      if (cumulativeTaxableIncome <= 0) return 0;
+      for (let b of TAX_BRACKETS) {
+        if (cumulativeTaxableIncome <= b.limit) return cumulativeTaxableIncome * b.rate - b.deduction;
+      }
+      return 0;
+    }
+
+    function calculateBonusTax(amount) {
+      if (amount <= 0) return 0;
+      const monthlyAvg = amount / 12;
+      for (let b of TAX_BRACKETS) {
+        if (monthlyAvg <= b.limit / 12) return amount * b.rate - b.deduction;
+      }
+      return amount * 0.45 - 181920;
+    }
+
+    function calculate() {
+      const salary = Number(document.getElementById('salary').value) || 0;
+      const social = Number(document.getElementById('social').value) || 0;
+      const fund = Number(document.getElementById('fund').value) || 0;
+      const special = Number(document.getElementById('special').value) || 0;
+      const bonus = Number(document.getElementById('bonus').value) || 0;
+      const bonusMethod = document.getElementById('bonusMethod').value;
+
+      let cumulativeIncome = 0;
+      let cumulativeDeductions = 0;
+      let cumulativeTaxPaid = 0; // ✅ 修复：明确累计已缴税额变量
+      let bonusTax = 0;
+      let bonusTaxable = 0;
+      const monthlyData = [];
+      let totalNet = 0;
+      let totalTax = 0;
+      let totalGross = salary * 12;
+      let totalFund = fund * 24;
+
+      if (bonus > 0) {
+        if (bonusMethod === 'separate') {
+          bonusTax = calculateBonusTax(bonus);
+          bonusTaxable = bonus - bonusTax;
+          totalTax += bonusTax;
+          totalNet += bonusTaxable;
+        } else {
+          totalGross += bonus;
+        }
+      }
+
+      for (let m = 1; m <= 12; m++) {
+        let monthIncome = salary;
+        if (bonusMethod === 'combined' && m === 12) monthIncome += bonus;
+
+        cumulativeIncome += monthIncome;
+        cumulativeDeductions += (5000 + special + social + fund);
+        
+        // ✅ 修复：严格累计预扣预缴逻辑
+        let cumTaxable = Math.max(0, cumulativeIncome - cumulativeDeductions);
+        let currentCumTax = calculateTax(cumTaxable);
+        let monthTax = Math.max(0, currentCumTax - cumulativeTaxPaid);
+        cumulativeTaxPaid = currentCumTax;
+
+        let monthNet = monthIncome - social - fund - monthTax;
+        totalTax += monthTax;
+        totalNet += monthNet;
+
+        monthlyData.push({ month: `${m}月`, gross: monthIncome, deduction: social + fund, taxable: cumTaxable, tax: monthTax, net: monthNet });
+      }
+
+      updateSummary(totalGross, totalTax, totalFund, totalNet, bonusTax);
+      renderTable(monthlyData);
+      renderChart(monthlyData);
+      document.getElementById('bonusTag').textContent = bonusMethod === 'separate' ? '年终奖单独计税' : '年终奖并入综合所得';
+    }
+
+    function updateSummary(gross, tax, fund, net, bonusTax) {
+      document.getElementById('s-gross').textContent = formatMoney(gross);
+      document.getElementById('s-tax').textContent = formatMoney(tax + bonusTax);
+      document.getElementById('s-fund').textContent = formatMoney(fund);
+      document.getElementById('s-net').textContent = formatMoney(net);
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${row.month}</td><td>${formatMoney(row.gross)}</td><td>${formatMoney(row.deduction)}</td><td>${formatMoney(row.taxable)}</td><td style="color:var(--danger)">${formatMoney(row.tax)}</td><td style="color:var(--success); font-weight:bold">${formatMoney(row.net)}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderChart(data) {
+      const ctx = document.getElementById('incomeChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(d => d.month),
+          datasets: [
+            {
+              label: '税后实发',
+              data: data.map(d => d.net), // ✅ 修复：补充缺失的 data: 键名
+              backgroundColor: 'rgba(16, 185, 129, 0.6)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1, yAxisID: 'y', order: 2
+            },
+            {
+              label: '当月个税',
+              data: data.map(d => d.tax), // ✅ 修复：补充缺失的 data: 键名
+              backgroundColor: 'rgba(239, 68, 68, 0.6)', borderColor: 'rgba(239, 68, 68, 1)', borderWidth: 1, yAxisID: 'y1', order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formatMoney(c.raw)}` } } },
+          scales: {
+            y: { type: 'linear', display: true, position: 'left', title: { display: true, text: '税后工资 (元)' } },
+            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '个税 (元)' } }
+          }
+        }
+      });
+    }
+
+    function resetForm() {
+      document.getElementById('salary').value = 15000;
+      document.getElementById('social').value = 1200;
+      document.getElementById('fund').value = 1800;
+      document.getElementById('special').value = 3000;
+      document.getElementById('bonus').value = 30000;
+      document.getElementById('bonusMethod').value = 'separate';
+      calculate();
+    }
+
+    window.onload = () => {
+      document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', () => clearTimeout(debounceTimer) || (debounceTimer = setTimeout(calculate, 300))));
+      let debounceTimer;
+      calculate();
+    };
+  </script>
+</body>
+</html>
